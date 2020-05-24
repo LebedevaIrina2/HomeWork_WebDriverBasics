@@ -1,15 +1,47 @@
-using NUnit.Framework;
+﻿using NUnit.Framework;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
 using System;
+using System.Collections.Concurrent;
 using System.Linq;
+using System.Security.Cryptography.X509Certificates;
+using System.Threading;
 
-namespace NUnitTestProject1
+namespace WebDriverBasics
 {
     public class Tests
     {
         private IWebDriver driver;
+        private WebDriverWait wait;
+        private MainPage mainPage;
+        private Login login;
+        private AllProducts allProducts;          
+        private NewProducts newProducts;
+        private DeleteNewProduct deleteNewProduct;
+
+
+        // Для проверки загрузки нужной страницы
+        private const string CheckNameHomePage="Home page"; 
+        private const string CheckNameLoginPage = "Login";
+        private const string CheckNameAllProductsPage = "All Products";
+        private const string CheckNameProductEditingPage = "Product editing";
+
+        //  Для авторизации
+        private const string SelectLogin = "user";  
+
+        // Данные для карточки с новым продуктом
+        private const string SendKeysProductName = "King prawns";  
+        private const string SelectCategoryId = "Seafood";
+        private const string SelectSupplierId = "Pavlova, Ltd.";
+        private const string SendKeysUnitPrice = "500";
+        private const string SendKeysUnitPriceCheck = "500,0000";
+        private const string SendKeysQuantityPerUnit = "24 pieces";
+        private const string SendKeysUnitsInStock = "20";
+        private const string SendKeysUnitsOnOrder = "3";
+        private const string SendKeysReorderLevel = "2";
+
+
 
         [SetUp]
         public void Setup()
@@ -18,52 +50,47 @@ namespace NUnitTestProject1
             driver.Navigate().GoToUrl("http://localhost:5000");
             driver.Manage().Window.Maximize();
             driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(10);
+            wait = new WebDriverWait(driver, TimeSpan.FromSeconds(5));
+           
+            mainPage = new MainPage(driver);    //инициализируем страницу MainPage
+            login = new Login(driver);
         }
 
 
         //// Autorization
         [Test]
-        public void Test1_Autorization()
+        public void Test1_Autorization()   
         {
-            Assert.AreEqual("Login", driver.FindElement(By.CssSelector("h2")).Text);  // �������� �������� ������ �������� ����������� � ������� "Login" 
+            Assert.AreEqual(CheckNameLoginPage, login.PageAutorization()); // Проверка загрузки нужной страницы авторизации с текстом "Login" 
+                        
+            mainPage.LoginEnter(SelectLogin); // вызываем метод ввода логина
+            login=mainPage.PasswordAndAutorization(SelectLogin); // вызываем метод ввода пароля и клика по кнопке "Отправить". Переход на стр.Login
 
-            driver.FindElement(By.XPath("//input[@id=\"Name\"]")).SendKeys("user");
-            driver.FindElement(By.XPath("//input[@id=\"Password\"]")).SendKeys("user");
-            driver.FindElement(By.XPath("//input[@type='submit']")).Click();
-
-            Assert.AreEqual("Home page", driver.FindElement(By.CssSelector("h2")).Text); // �������� �������� ����������� - ������ ���� ��������� �������� "Home page"
+            Assert.AreEqual(CheckNameHomePage, login.PageAutorization());// Проверка успешной авторизации - должна быть загружена страница "Home page"
         }
-
 
 
         // Adding a New Product
         [Test]
         public void Test2_Add_Product()
         {
-            // Autorization
-            driver.FindElement(By.Id("Name")).SendKeys("user");
-            driver.FindElement(By.Id("Password")).SendKeys("user");
-            driver.FindElement(By.XPath("//input[@type='submit']")).Click();
-
-
-            driver.FindElement(By.XPath("//a[contains(text(), 'All Products')]")).Click();
-            driver.FindElement(By.XPath("//a[contains(text(), 'Create new')]")).Click();
-
-            Assert.AreEqual("Product editing", driver.FindElement(By.CssSelector("h2")).Text); // �������� �������� ������ �������� �������������� �������� "Product editing" 
-
-            driver.FindElement(By.Id("ProductName")).SendKeys("King prawns");
-            new SelectElement(driver.FindElement(By.Id("CategoryId"))).SelectByText("Seafood");
-            new SelectElement(driver.FindElement(By.Id("SupplierId"))).SelectByText("Pavlova, Ltd.");
-            driver.FindElement(By.Id("UnitPrice")).SendKeys("500");
-            driver.FindElement(By.Id("QuantityPerUnit")).SendKeys("24 pieces");
-            driver.FindElement(By.Id("UnitsInStock")).SendKeys("20");
-            driver.FindElement(By.Id("UnitsOnOrder")).SendKeys("3");
-            driver.FindElement(By.Id("ReorderLevel")).SendKeys("2");
-            driver.FindElement(By.Id("Discontinued")).Click();
-
-            Assert.IsTrue(driver.FindElement(By.XPath("//input[@id=\"Discontinued\"]")).Enabled);// ��������, ������� �� ������� "Discontinued"
-
-            driver.FindElement(By.XPath("//input[@type=\"submit\"]")).Click();
+            mainPage.LoginEnter(SelectLogin); // вызываем метод ввода логина
+            login = mainPage.PasswordAndAutorization(SelectLogin); // вызываем метод ввода пароля и клика по кнопке "Отправить" и переходим на страницу Product editing
+           
+            allProducts = new AllProducts(driver);
+            newProducts = new NewProducts(driver);
+                      
+            // ЗАПОЛНЯЕМ КАРТОЧКУ ПРОДУКТА
+            newProducts.CreateNewProductsName(SendKeysProductName);
+            Assert.AreEqual(CheckNameProductEditingPage, allProducts.CheckNamePage()); ; // Проверка загрузки нужной страницы "Product editing"
+            newProducts.SelectNewCategoryId(SelectCategoryId);
+            newProducts.SelectNewSupplierId(SelectSupplierId);
+            newProducts.CreateNewUnitPrice(SendKeysUnitPrice);
+            newProducts.CreateNewQuantityPerUnit(SendKeysQuantityPerUnit);
+            newProducts.CreateNewUnitsInStock(SendKeysUnitsInStock);
+            newProducts.CreateNewUnitsOnOrder(SendKeysUnitsOnOrder); // +отмечаем скидку и нажимаем кнопку "Отправить"
+            allProducts=newProducts.CreateNewReorderLevel(SendKeysReorderLevel); // + отмечаем скидку,нажимаем "отправить" и переходим на страницу AllProducts
+            
         }
 
 
@@ -71,21 +98,22 @@ namespace NUnitTestProject1
         [Test]
         public void Test3_Check_Value()
         {
-            // Autorization
-            driver.FindElement(By.Id("Name")).SendKeys("user");
-            driver.FindElement(By.Id("Password")).SendKeys("user");
-            driver.FindElement(By.XPath("//input[@type='submit']")).Click();
+            mainPage.LoginEnter(SelectLogin); // вызываем метод ввода логина
+            login = mainPage.PasswordAndAutorization(SelectLogin); // вызываем метод ввода пароля и клика по кнопке "Отправить" и переходим на страницу HomePage
 
-            driver.FindElement(By.XPath("//a[contains(text(), 'All Products')]")).Click();
-            Assert.AreEqual("King prawns", driver.FindElement(By.XPath("//a[text()=\"King prawns\"]")).Text); // �������� ProductName
-            Assert.AreEqual("Seafood", driver.FindElement(By.XPath("(//td/a[text()=\"King prawns\"]/..//following-sibling::td[1])")).Text); // CategoryName
-            Assert.AreEqual("Pavlova, Ltd.", driver.FindElement(By.XPath("(//td/a[text()=\"King prawns\"]/..//following-sibling::td[2])")).Text); // �������� SupplierName
-            Assert.AreEqual("24 pieces", driver.FindElement(By.XPath("(//td/a[text()=\"King prawns\"]/..//following-sibling::td[3])")).Text); // �������� QuantityPerUnit
-            Assert.AreEqual("500,0000", driver.FindElement(By.XPath("(//td/a[text()=\"King prawns\"]/..//following-sibling::td[4])")).Text); // �������� UnitPrice
-            Assert.AreEqual("20", driver.FindElement(By.XPath("(//td/a[text()=\"King prawns\"]/..//following-sibling::td[5])")).Text); // �������� UnitsInStock
-            Assert.AreEqual("3", driver.FindElement(By.XPath("(//td/a[text()=\"King prawns\"]/..//following-sibling::td[6])")).Text); // �������� UnitsOnOrder
-            Assert.AreEqual("2", driver.FindElement(By.XPath("(//td/a[text()=\"King prawns\"]/..//following-sibling::td[7])")).Text); // �������� ReorderLevel
-            Assert.AreEqual("True", driver.FindElement(By.XPath("(//td/a[text()=\"King prawns\"]/..//following-sibling::td[8])")).Text); // �������� Discontinued
+            allProducts = new AllProducts(driver);
+
+            Assert.AreEqual(SendKeysProductName, allProducts.SelectProductName());
+            Assert.AreEqual(CheckNameAllProductsPage, allProducts.CheckNamePage()); // Проверка загрузки нужной страницы "All Products"
+            Assert.AreEqual(SelectCategoryId, allProducts.SelectCategoryID());
+            Assert.AreEqual(SelectSupplierId, allProducts.SelectSupplierID());
+            Assert.AreEqual(SendKeysQuantityPerUnit, allProducts.SelectQuantityPerUnit());
+            Assert.AreEqual(SendKeysUnitPriceCheck, allProducts.SelectUnitPrice());
+            Assert.AreEqual(SendKeysUnitsInStock, allProducts.SelectUnitsInStock());
+            Assert.AreEqual(SendKeysUnitsOnOrder, allProducts.SelectUnitsOnOrder());
+            Assert.AreEqual(SendKeysReorderLevel, allProducts.SelectReorderLevel());
+            Assert.AreEqual("True", allProducts.SelectDiscontinuedl()); // Проверка, что поставлена скидка
+
         }
 
 
@@ -93,17 +121,16 @@ namespace NUnitTestProject1
         [Test]
         public void Test4_Delete()
         {
-            // Autorization
-            driver.FindElement(By.Id("Name")).SendKeys("user");
-            driver.FindElement(By.Id("Password")).SendKeys("user");
-            driver.FindElement(By.XPath("//input[@type='submit']")).Click();
+            
+            mainPage.LoginEnter(SelectLogin); // вызываем метод ввода логина
+            login = mainPage.PasswordAndAutorization(SelectLogin); // вызываем метод ввода пароля и клика по кнопке "Отправить" и переходим на страницу HomePage
 
+            deleteNewProduct = new DeleteNewProduct(driver);
 
-            driver.FindElement(By.XPath("//a[contains(text(), 'All Products')]")).Click();
-            driver.FindElement(By.XPath("(//td/a[text()=\"King prawns\"]/..//following-sibling::td[10])")).Click(); // �������� ""�������"
-            driver.SwitchTo().Alert().Accept(); //������������� �������� � ����������� ���� ��������������
-
+            deleteNewProduct.RemoveProducts();
+                        
         }
+
 
 
         //Test 5. Logout
@@ -111,25 +138,21 @@ namespace NUnitTestProject1
         public void Test5_Logout()
         {
 
-
-            // Autorization
-            driver.FindElement(By.Id("Name")).SendKeys("user");
-            driver.FindElement(By.Id("Password")).SendKeys("user");
-            driver.FindElement(By.XPath("//input[@type='submit']")).Click();
+            mainPage.LoginEnter(SelectLogin); // вызываем метод ввода логина
+            login = mainPage.PasswordAndAutorization(SelectLogin); // вызываем метод ввода пароля и клика по кнопке "Отправить" и переходим на страницу HomePage
 
 
-            driver.FindElement(By.XPath("//a[text()='Logout']")).Click(); //LOGOUT
-            AssertionException.Equals("user", driver.FindElement(By.Id("Name"))); // ��������,��� ���� �� �������� ����� ��������� ����� "user"
-            AssertionException.Equals("user", driver.FindElement(By.Id("Password"))); // ��������,��� ���� �� �������� ����� ��������� ����� "user"
+            login.Logout(); //LOGOUT
 
-            driver.FindElement(By.Id("Name")).SendKeys("user");
-            driver.FindElement(By.Id("Password")).SendKeys("user");
-            driver.FindElement(By.XPath("//input[@type='submit']")).Click();
+            
+            mainPage.LoginEnter(SelectLogin); // заново вводим логин
+            login = mainPage.PasswordAndAutorization(SelectLogin); // заново вводим пароль,  кликаем по кнопке "Отправить" и переходим на страницу HomePage
+
         }
 
 
 
-        // ������� ���� �������� ����� ���������� �����
+        // Закрыть окно браузера после выполнения теста
         [TearDown]
         public void CleanUp()
         {
@@ -137,5 +160,8 @@ namespace NUnitTestProject1
             driver.Quit();
         }
     }
-
 }
+
+    
+
+
